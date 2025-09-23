@@ -6,9 +6,6 @@ include csv
 
 flights = load-table:
   rownames :: Number,
-  year :: Number,
-  month :: Number,
-  day :: Number,
   dep_time :: Number,
   sched_dep_time :: Number,
   dep_delay :: Number,
