@@ -40,28 +40,30 @@ flights = load-table:
   sanitize minute using num-sanitizer
 end
 
+flights
+
 # =========================================
-# Exercise 1 (Easy) — Long Flights
-# =========================================
+# # Exercise 1 (Easy) — Long Flights
+# # =========================================
 
-# 1) flights is assumed loaded.
+# # 1) flights is assumed loaded.
 
-# 2) Predicate: long-distance flights (>= 1500 miles)
-fun is_long_flight(r :: Row) -> Boolean:
-  r["distance"] >= 1500
-end
+# # 2) Predicate: long-distance flights (>= 1500 miles)
+# fun is_long_flight(r :: Row) -> Boolean:
+#   r["distance"] >= 1500
+# end
 
-# 3) Filter long flights
-long-flights = filter-with(flights, is_long_flight)
+# # 3) Filter long flights
+# long-flights = filter-with(flights, is_long_flight)
 
-# 4) Order by air_time descending (false => descending)
-long-flights-by-time = order-by(long-flights, "air_time", false)
+# # 4) Order by air_time descending (false => descending)
+# long-flights-by-time = order-by(long-flights, "air_time", false)
 
-# 5) Extract carrier, origin, dest of the largest air_time flight
-lf-top-row = long-flights-by-time.row-n(0)
-lf-top-carrier = lf-top-row["carrier"]
-lf-top-origin  = lf-top-row["origin"]
-lf-top-dest    = lf-top-row["dest"]
+# # 5) Extract carrier, origin, dest of the largest air_time flight
+# lf-top-row = long-flights-by-time.row-n(0)
+# lf-top-carrier = lf-top-row["carrier"]
+# lf-top-origin  = lf-top-row["origin"]
+# lf-top-dest    = lf-top-row["dest"]
 
-# (Optionally display or use them)
-# lf-top-carrier, lf-top-origin, lf-top-dest
+# # (Optionally display or use them)
+# # lf-top-carrier, lf-top-origin, lf-top-dest
