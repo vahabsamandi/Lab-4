@@ -5,6 +5,9 @@ include image
 include csv
 include data-source
 
+# Exercise 1 — Long Flights
+# 1) Load the table
+
 flights = load-table:
   rownames :: Number,
   dep_time :: Number,
@@ -40,30 +43,183 @@ flights = load-table:
   sanitize minute using num-sanitizer
 end
 
-flights
+# 2) Predicate: long-distance flights (>= 1500 miles)
+fun is_long_flight(r :: Row) -> Boolean:
+  r["distance"] >= 1500
+end
 
-# =========================================
-# # Exercise 1 (Easy) — Long Flights
-# # =========================================
+# 3) Filter long flights
+long-flights = filter-with(flights, is_long_flight)
 
-# # 1) flights is assumed loaded.
+# 4) Order by air_time descending (false => descending)
+long-flights-by-time = order-by(long-flights, "air_time", false)
 
-# # 2) Predicate: long-distance flights (>= 1500 miles)
-# fun is_long_flight(r :: Row) -> Boolean:
-#   r["distance"] >= 1500
-# end
+# 5) Extract carrier, origin, dest of the largest air_time flight
+lf-top-row = long-flights-by-time.row-n(0)
+lf-top-carrier = lf-top-row["carrier"]
+lf-top-origin  = lf-top-row["origin"]
+lf-top-dest    = lf-top-row["dest"]
 
-# # 3) Filter long flights
-# long-flights = filter-with(flights, is_long_flight)
+#------------------------------------------------------------
 
-# # 4) Order by air_time descending (false => descending)
-# long-flights-by-time = order-by(long-flights, "air_time", false)
 
-# # 5) Extract carrier, origin, dest of the largest air_time flight
-# lf-top-row = long-flights-by-time.row-n(0)
-# lf-top-carrier = lf-top-row["carrier"]
-# lf-top-origin  = lf-top-row["origin"]
-# lf-top-dest    = lf-top-row["dest"]
+# Exercise 2 — Delayed Morning Flights
 
-# # (Optionally display or use them)
-# # lf-top-carrier, lf-top-origin, lf-top-dest
+# 1) Predicate: departure delay >= 30
+fun is_delayed_departure(r :: Row) -> Boolean:
+  r["dep_delay"] >= 30
+end
+
+# 2) Predicate: scheduled departure before noon (time encoded as HHMM integers)
+fun is_morning_sched_dep(r :: Row) -> Boolean:
+  r["sched_dep_time"] < 1200
+end
+
+# 3-4) Use lambdas to filter: delayed first, then morning
+delayed = filter-with(flights, lam(r): r["dep_delay"] >= 30 end)
+delayed-morning = filter-with(delayed, lam(r): r["sched_dep_time"] < 1200 end)
+
+# 7) Combine both conditions (equivalent one-shot approach, if desired)
+delayed-morning-both = filter-with(
+  flights,
+  lam(r): (r["dep_delay"] >= 30) and (r["sched_dep_time"] < 1200) end)
+
+# 8) Further filter to only flights with distance > 500
+delayed-morning-500 = filter-with(delayed-morning, lam(r): r["distance"] > 500 end)
+
+# 9) Order by dep_delay descending and extract flight number, origin, dep_delay of worst case
+dm500-by-delay = order-by(delayed-morning-500, "dep_delay", false)
+dm500-top      = dm500-by-delay.row-n(0)
+dm500-flight   = dm500-top["flight"]
+dm500-origin   = dm500-top["origin"]
+dm500-depdel   = dm500-top["dep_delay"]
+
+
+# ---------------------------------------
+
+# Exercise 3 — Clean Delays + Compute Effective Speed (transform + build)
+
+
+# 1) Cap negative dep_delay and arr_delay at 0
+no-neg-dep =
+  transform-column(
+    flights, "dep_delay",
+    lam(d :: Number):
+      if d < 0:
+        0
+      else:
+        d
+      end
+    end)
+
+
+clean-delays =
+  transform-column(
+    no-neg-dep, "arr_delay",
+    lam(a :: Number):
+      if a < 0:
+        0
+      else:
+        a
+      end
+    end)
+
+
+# 2) Add effective_speed = distance / (air_time / 60), only if air_time > 0
+with-speed = build-column(
+  clean-delays, "effective_speed",
+  lam(r :: Row):
+    if r["air_time"] > 0:
+      r["distance"] / (r["air_time"] / 60)
+    else:
+      0
+    end
+  end)
+
+# 3) Order by effective_speed descending
+with-speed-desc = order-by(with-speed, "effective_speed", false)
+
+# 4) Extract carrier, origin, dest of the fastest flight
+spd-top      = with-speed-desc.row-n(0)
+spd-carrier  = spd-top["carrier"]
+spd-origin   = spd-top["origin"]
+spd-dest     = spd-top["dest"]
+
+
+# -------------------------------------------
+
+# Exercise 4 — Discount Late Arrivals + On-Time Score (transform + build + test)
+
+
+# 1) Table function: discount arr_delay by 20% only when 0 <= arr_delay <= 45
+fun apply-arrival-discount(t :: Table) -> Table:
+  doc: "Reduce arr_delay by 20% when 0 <= arr_delay <= 45; leave others unchanged"
+  transform-column(
+    t, "arr_delay",
+    lam(a :: Number):
+      if (a >= 0) and (a <= 45): a * 0.8 else: a end
+    end)
+where:
+  # minimal unit-style examples for the function behavior
+  test-delays =
+    table: arr_delay
+      row: -10
+      row:   0
+      row:  30
+      row:  60
+    end
+
+  apply-arrival-discount(test-delays) is
+    table: arr_delay
+      row: -10              # early arrival => unchanged
+      row:  0 * 0.8         # remains 0
+      row: 30 * 0.8         # discounted
+      row: 60               # unchanged (too large to discount)
+    end
+end
+
+# apply discount to the flights table
+discounted = apply-arrival-discount(flights)
+discounted
+# 2) Build on_time_score:
+#    score = 100 - max(0, dep_delay) - max(0, arr_delay) - (air_time / 30), clamped to >= 0
+scored = build-column(
+  discounted, "on_time_score",
+  lam(r :: Row):
+    block:
+      ddep = if r["dep_delay"] < 0: 0 else: r["dep_delay"] end
+      darr = if r["arr_delay"] < 0: 0 else: r["arr_delay"] end
+      raw  = 100 - ddep - darr - (r["air_time"] / 30)
+      if raw < 0: 0 else: raw end
+    end
+  end)
+
+
+# 3) Order by on_time_score desc, then by distance asc (tie-breaker)
+# Pyret's order-by handles a single column; for a tie-breaker,
+# do a stable two-pass sort: first ascending distance, then descending score.
+by-distance-asc = order-by(scored, "distance", true)
+final-ranked    = order-by(by-distance-asc, "on_time_score", false)
+
+# Extract top three rows' carrier, flight, origin, dest (if at least 3 exist)
+top1 = final-ranked.row-n(0)
+top2 = final-ranked.row-n(1)
+top3 = final-ranked.row-n(2)
+
+top1-carrier = top1["carrier"]
+top1-flight = top1["flight"]
+top1-origin = top1["origin"]
+top1-dest = top1["dest"]
+top2-carrier = top2["carrier"]
+top2-flight = top2["flight"]
+top2-origin = top2["origin"]
+top2-dest = top2["dest"]
+top3-carrier = top3["carrier"]
+top3-flight = top3["flight"] 
+top3-origin = top3["origin"]
+top3-dest = top3["dest"]
+
+
+# top1-carrier, top1-flight, top1-origin, top1-dest
+# top2-carrier, top2-flight, top2-origin, top2-dest
+# top3-carrier, top3-flight, top3-origin, top3-dest
