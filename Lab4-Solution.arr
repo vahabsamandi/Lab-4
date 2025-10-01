@@ -1,6 +1,5 @@
 use context dcic2024
 
-include table 
 include image
 include csv
 include data-source
@@ -26,9 +25,7 @@ flights = load-table:
   hour :: Number,
   minute :: Number,
   time_hour :: String
-  source: csv-table-url(
-    "https://raw.githubusercontent.com/vahabsamandi/Lab-4/refs/heads/main/.vscode/flights.csv",
-    default-options)
+  source: csv-table-file("flights.csv",default-options)
   sanitize rownames using num-sanitizer
   sanitize dep_time using num-sanitizer
   sanitize sched_dep_time using num-sanitizer
@@ -50,6 +47,7 @@ end
 
 # 3) Filter long flights
 long-flights = filter-with(flights, is_long_flight)
+# long-flights
 
 # 4) Order by air_time descending (false => descending)
 long-flights-by-time = order-by(long-flights, "air_time", false)
@@ -60,8 +58,7 @@ lf-top-carrier = lf-top-row["carrier"]
 lf-top-origin  = lf-top-row["origin"]
 lf-top-dest    = lf-top-row["dest"]
 
-#------------------------------------------------------------
-
+#-------------------------------------------------------
 
 # Exercise 2 — Delayed Morning Flights
 
@@ -76,11 +73,11 @@ fun is_morning_sched_dep(r :: Row) -> Boolean:
 end
 
 # 3) Use lambdas to filter: delayed first, then morning
-delayed = filter-with(flights, lam(r): r["dep_delay"] >= 30 end)
-delayed-morning = filter-with(delayed, lam(r): r["sched_dep_time"] < 1200 end)
+delayed = filter-with(flights, lam(r :: Row): r["dep_delay"] >= 30 end)
+delayed-morning = filter-with(delayed, lam(r :: Row): r["sched_dep_time"] < 1200 end)
 
 # 4) Further filter to only flights with distance > 500
-delayed-morning-500 = filter-with(delayed-morning, lam(r): r["distance"] > 500 end)
+delayed-morning-500 = filter-with(delayed-morning, lam(r :: Row): r["distance"] > 500 end)
 
 # 5) Order by dep_delay descending and extract flight number, origin, dep_delay of worst case
 dm500-by-delay = order-by(delayed-morning-500, "dep_delay", false)
@@ -133,6 +130,7 @@ with-speed = build-column(
     end
   end)
 
+
 # 3) Order by effective_speed descending
 with-speed-desc = order-by(with-speed, "effective_speed", false)
 
@@ -156,6 +154,8 @@ fun apply-arrival-discount(t :: Table) -> Table:
     lam(a :: Number):
       if (a >= 0) and (a <= 45): a * 0.8 else: a end
     end)
+  
+# 2) Testing Function
 where:
   # minimal unit-style examples for the function behavior
   test-delays =
@@ -177,8 +177,8 @@ end
 
 # apply discount to the flights table
 discounted = apply-arrival-discount(flights)
-discounted
-# 2) Build on_time_score:
+# discounted
+# 3) Build on_time_score:
 #    score = 100 - max(0, dep_delay) - max(0, arr_delay) - (air_time / 30), clamped to >= 0
 scored = build-column(
   discounted, "on_time_score",
@@ -186,22 +186,20 @@ scored = build-column(
     block:
       ddep = if r["dep_delay"] < 0: 0 else: r["dep_delay"] end
       darr = if r["arr_delay"] < 0: 0 else: r["arr_delay"] end
-      raw  = 100 - ddep - darr - (r["air_time"] / 30)
-      if raw < 0: 0 else: raw end
+      score  = 100 - ddep - darr - (r["air_time"] / 30)
+      if score < 0: 0 else: score end
     end
   end)
 
-
-# 3) Order by on_time_score desc, then by distance asc (tie-breaker)
+# 4) Order by on_time_score desc, then by distance asc (tie-breaker)
 # Pyret's order-by handles a single column; for a tie-breaker,
 # do a stable two-pass sort: first ascending distance, then descending score.
 by-distance-asc = order-by(scored, "distance", true)
 final-ranked    = order-by(by-distance-asc, "on_time_score", false)
 
-# 4) Extract top three rows' carrier, flight, origin, dest (if at least 3 exist)
+# 5) Extract top three rows' carrier, flight, origin, dest (if at least 3 exist)
 top1 = final-ranked.row-n(0)
 top2 = final-ranked.row-n(1)
-top3 = final-ranked.row-n(2)
 
 top1-carrier = top1["carrier"]
 top1-flight = top1["flight"]
@@ -211,8 +209,17 @@ top2-carrier = top2["carrier"]
 top2-flight = top2["flight"]
 top2-origin = top2["origin"]
 top2-dest = top2["dest"]
-top3-carrier = top3["carrier"]
-top3-flight = top3["flight"] 
-top3-origin = top3["origin"]
-top3-dest = top3["dest"]
+
+
+# 6) The following is just one example solution. You can suggest your own alternative formula.
+
+# If the objective is pure punctuality fairness, use the following (no duration penalty):
+# score_fair = 100 
+#              - max(0, dep_delay) 
+#              - max(0, arr_delay)
+
+# If the objective is to consider delay severity relative to trip length use the following:
+# delay_rate = (max(0, dep_delay) + max(0, arr_delay)) / max(1, air_time/60)
+# score_rate = 100 - delay_rate
+
 
