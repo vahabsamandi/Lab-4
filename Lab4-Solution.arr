@@ -42,6 +42,7 @@ end
 
 # 2) Predicate: long-distance flights (>= 1500 miles)
 fun is_long_flight(r :: Row) -> Boolean:
+  doc: "Return true if a flight's distance is at least 1500 miles."
   r["distance"] >= 1500
 end
 
@@ -64,11 +65,13 @@ lf-top-dest    = lf-top-row["dest"]
 
 # 1) Predicate: departure delay >= 30
 fun is_delayed_departure(r :: Row) -> Boolean:
+  doc: "Return true if dep_delay is 30 minutes or more."
   r["dep_delay"] >= 30
 end
 
 # 2) Predicate: scheduled departure before noon (time encoded as HHMM integers)
 fun is_morning_sched_dep(r :: Row) -> Boolean:
+  doc: "Return true if sched_dep_time is before 1200 (i.e., before noon)."
   r["sched_dep_time"] < 1200
 end
 
@@ -197,7 +200,7 @@ scored = build-column(
 by-distance-asc = order-by(scored, "distance", true)
 final-ranked    = order-by(by-distance-asc, "on_time_score", false)
 
-# 5) Extract top three rows' carrier, flight, origin, dest (if at least 3 exist)
+# 5) Extract top two rows' carrier, flight, origin, dest (if at least 2 exist)
 top1 = final-ranked.row-n(0)
 top2 = final-ranked.row-n(1)
 
