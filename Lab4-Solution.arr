@@ -162,19 +162,19 @@ fun apply-arrival-discount(t :: Table) -> Table:
 where:
   # minimal unit-style examples for the function behavior
   test-delays =
-    table: arr_delay
+    table: arr_delay :: Number
       row: -10
       row:   0
       row:  30
       row:  60
     end
-
+  
   apply-arrival-discount(test-delays) is
-    table: arr_delay
-      row: -10              # early arrival => unchanged
-      row:  0 * 0.8         # remains 0
-      row: 30 * 0.8         # discounted
-      row: 60               # unchanged (too large to discount)
+    table: arr_delay :: Number
+      row: -10           # early arrival => unchanged
+      row:   0 * 0.8     # remains 0
+      row:  30 * 0.8     # discounted
+      row:  60           # unchanged (too large to discount)
     end
 end
 
@@ -213,8 +213,16 @@ top2-flight = top2["flight"]
 top2-origin = top2["origin"]
 top2-dest = top2["dest"]
 
+# 6
+# Long flights are automatically penalized even when two flights have the same delays. That biases the score against long flights.
 
-# 6) The following is just one example solution. You can suggest your own alternative formula.
+# Concrete comparison (same delays, different lengths):
+#    Short flight: air_time = 45, dep_delay = 10, arr_delay = 10
+#        score = 100 - 10 - 10 - (45/30) = 78.5
+#    Long flight: air_time = 300, dep_delay = 10, arr_delay = 10
+#        score = 100 - 10 - 10 - (300/30) = 70
+
+# The following is just one example solution. You can suggest your own alternative formula.
 
 # If the objective is pure punctuality fairness, use the following (no duration penalty):
 # score_fair = 100 
